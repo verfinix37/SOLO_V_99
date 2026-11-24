@@ -10,15 +10,29 @@ const SUBJECTS = [
 ];
 const TOTAL = 81;
 const makeInitial = () => Object.fromEntries(SUBJECTS.map(s => [s.id, Array.from({length:s.count}, (_,i) => ({id:`${s.id}-${i+1}`, title:`Chapter ${String(i+1).padStart(2,'0')}`, done:false}))]));
+const emptyRanks = () => ({ revisions: { maths:false, science:false, analysis:false, reasoning:false }, mockScores: [null, null, null] });
 const readStore = () => {
   try { const raw = JSON.parse(localStorage.getItem('solo-v1') || '{}'); return {
     profile: { name: raw.profile?.name || '', age: raw.profile?.age || '' },
-    chapters: raw.chapters || makeInitial()
-  }; } catch { return { profile:{name:'',age:''}, chapters:makeInitial() }; }
+    chapters: raw.chapters || makeInitial(),
+    ranks: { ...emptyRanks(), ...(raw.ranks || {}), revisions: { ...emptyRanks().revisions, ...(raw.ranks?.revisions || {}) }, mockScores: Array.isArray(raw.ranks?.mockScores) ? raw.ranks.mockScores.slice(0,3) : [null,null,null] }
+  }; } catch { return { profile:{name:'',age:''}, chapters:makeInitial(), ranks:emptyRanks() }; }
 };
 const percent = (n,d) => d ? Math.round(n/d*100) : 0;
 const levelFor = completed => Math.min(100, Math.floor(completed * 100 / TOTAL));
 const xpFor = completed => Math.round(completed * 10000 / TOTAL);
+const hunterClass = level => level >= 90 ? 'S-Rank Hunter' : level >= 75 ? 'A-Rank Hunter' : level >= 60 ? 'B-Rank Hunter' : level >= 40 ? 'C-Rank Hunter' : level >= 20 ? 'D-Rank Hunter' : 'E-Rank Hunter';
+const revisionAwards = [
+  {key:'maths', title:'Mathematics Revision', rank:'National Rank 04'},
+  {key:'science', title:'Basic Science Revision', rank:'National Rank 03'},
+  {key:'analysis', title:'Data Analysis Revision', rank:'National Rank 02'},
+  {key:'reasoning', title:'Reasoning Revision', rank:'National Rank 01'}
+];
+const mockAwards = [
+  {name:'Liu Zhigang', rank:'World Rank 03'},
+  {name:'Thomas Andre', rank:'World Rank 02'},
+  {name:'Sung Jinwoo', rank:'World Rank 01'}
+];
 
 const BACKUP_FORMAT = 'solo-progress-backup';
 const BACKUP_VERSION = 1;
@@ -45,12 +59,19 @@ function validateBackup(payload) {
       };
     });
   }
+  const ranks = payload.data.ranks || {};
+  const revisions = ranks.revisions || {};
+  const mockScores = Array.isArray(ranks.mockScores) ? ranks.mockScores.slice(0, 3) : [null, null, null];
   return {
     profile: {
       name: typeof profile.name === 'string' ? profile.name : '',
       age: profile.age == null ? '' : String(profile.age)
     },
-    chapters: cleanChapters
+    chapters: cleanChapters,
+    ranks: {
+      revisions: { maths: revisions.maths === true, science: revisions.science === true, analysis: revisions.analysis === true, reasoning: revisions.reasoning === true },
+      mockScores: mockScores.map(score => Number.isFinite(Number(score)) && score !== null && Number(score) >= 0 && Number(score) <= 100 ? Number(score) : null)
+    }
   };
 }
 
@@ -88,6 +109,7 @@ function App(){
   const [editingName,setEditingName]=useState(false);
   const [profileDraft,setProfileDraft]=useState(store.profile);
   const [showReset,setShowReset]=useState(false);
+  const [scoreDrafts,setScoreDrafts]=useState(['','','']);
 
   const importInputRef = useRef(null);
 
@@ -139,6 +161,7 @@ function App(){
   const level=levelFor(completed), xp=xpFor(completed), overall=percent(completed,TOTAL);
   const nextMilestone=milestones.find(m=>m.level>level) || null;
   const remaining=TOTAL-completed;
+  const ranksUnlocked = level >= 100;
 
   function flash(message){setToast(message);window.clearTimeout(flash.timer);flash.timer=window.setTimeout(()=>setToast(''),2600);}
   function toggleChapter(subjectId,chapterId){
@@ -192,6 +215,7 @@ function App(){
             <div className="level-card-head"><div className="eyebrow"><span/> LEVEL BOOSTER</div><span className="level-badge">✦ LIVE</span></div>
             <div className="level-number"><span>LVL</span><strong>{String(level).padStart(2,'0')}</strong></div>
             <div className="level-caption">THE PATH TO <b>LEVEL 100</b></div>
+            <div className="hunter-class"><span>HUNTER CLASS</span><b>{hunterClass(level)}</b></div>
             <div className="level-track"><i style={{width:`${level}%`}}/><span className="level-glint"/></div>
             <div className="level-foot"><span>LEVEL 0</span><b>{level}% POWER</b><span>LEVEL 100</span></div>
             <div className="next-unlock"><span className="unlock-icon">✧</span><div><small>NEXT MILESTONE</small><b>{nextMilestone?`LEVEL ${nextMilestone.level} · ${nextMilestone.title}`:'MAX LEVEL ACHIEVED'}</b></div><span className="unlock-count">{nextMilestone?`${nextMilestone.level-level} LVL`:'MAX'}</span></div>
@@ -208,6 +232,13 @@ function App(){
             <div className="subject-track"><i style={{width:`${pct}%`}}/></div><div className="subject-foot"><span>{s.count-done} LEFT</span><span>{done===s.count?'SUBJECT CLEARED':'IN PROGRESS'}</span></div>
           </article>
         })}</div>
+
+        <section className={`rank-module glass ${ranksUnlocked?'unlocked':'locked'}`} aria-labelledby="rank-module-title">
+          <div className="rank-module-head"><div><div className="eyebrow"><span/> POST-LEVEL 100 ACHIEVEMENTS</div><h2 id="rank-module-title">National &amp; World Rankings</h2><p>{ranksUnlocked ? 'Complete each revision and score above 97 in each mock test to earn your ranks.' : 'Unlocks when you reach Level 100. Your revision and mock-test ranks will be earned here.'}</p></div><span className="rank-unlock-pill">{ranksUnlocked?'✦ UNLOCKED':'🔒 LEVEL 100'}</span></div>
+          <div className="rank-columns"><div className="rank-column"><h3>NATIONAL RANKINGS</h3>{revisionAwards.map(item=><div className={`rank-row ${store.ranks?.revisions?.[item.key]?'earned':''}`} key={item.key}><div><b>{item.title}</b><small>{store.ranks?.revisions?.[item.key]?'ACHIEVEMENT EARNED':'REVISION REQUIRED'}</small></div><strong>{item.rank}</strong><button disabled={!ranksUnlocked} onClick={()=>setStore(prev=>({...prev,ranks:{...prev.ranks,revisions:{...prev.ranks.revisions,[item.key]:!prev.ranks.revisions[item.key]}}}))}>{store.ranks?.revisions?.[item.key]?'✓ EARNED':ranksUnlocked?'MARK COMPLETE':'LOCKED'}</button></div>)}</div>
+          <div className="rank-column"><h3>WORLD RANKINGS · MOCK TESTS</h3>{mockAwards.map((item,index)=>{const score=store.ranks?.mockScores?.[index];const qualified=typeof score==='number' && score>97;return <div className={`rank-row ${qualified?'earned':''}`} key={item.name}><div><b>Mock Test {index+1} · {item.name}</b><small>{qualified?`SCORE ${score} · ACHIEVEMENT EARNED`:score!==null&&score!==undefined?`SCORE ${score} · NEED ABOVE 97`:'SCORE ABOVE 97 REQUIRED'}</small></div><strong>{item.rank}</strong><div className="rank-score"><input aria-label={`Mock Test ${index+1} score`} type="number" min="0" max="100" step="0.01" value={scoreDrafts[index]} disabled={!ranksUnlocked} onChange={e=>setScoreDrafts(prev=>prev.map((v,i)=>i===index?e.target.value:v))} placeholder="Score"/><button disabled={!ranksUnlocked||scoreDrafts[index]===''||!Number.isFinite(Number(scoreDrafts[index]))||Number(scoreDrafts[index])<0||Number(scoreDrafts[index])>100} onClick={()=>{const val=Number(scoreDrafts[index]);setStore(prev=>({...prev,ranks:{...prev.ranks,mockScores:prev.ranks.mockScores.map((v,i)=>i===index?val:v)}}));flash(val>97?'Mock score saved · world rank earned':'Mock score saved · score must exceed 97 to earn rank');}}>{qualified?'✓ SAVED':ranksUnlocked?'SAVE':'LOCKED'}</button></div></div>})}</div></div>
+          <small className="rank-note">Mock-test ranks are awarded only for scores strictly above 97. Your recorded scores and revision achievements are included in SOLO backups.</small>
+        </section>
 
         <div className="section-heading chapter-heading" id="chapter-manager"><div><div className="eyebrow">TAKE CONTROL</div><h2>Chapter manager</h2><p>Mark a chapter complete to earn XP and advance your level. Undo it anytime.</p></div><button className="reset-link" onClick={()=>setShowReset(true)}>↺ Reset all progress</button></div>
         <div className="manager glass">
@@ -228,7 +259,7 @@ function App(){
           <div className="backup-copy">
             <div className="eyebrow"><span/> DATA SAFETY</div>
             <h2>Protect your progress.</h2>
-            <p>Export a copy of your profile and all 81 chapter statuses. Keep the JSON backup somewhere safe, then import it whenever you need to restore your progress.</p>
+            <p>Export a copy of your profile, all 81 chapter statuses, and your revision and mock-test rank records. Keep the JSON backup somewhere safe, then import it whenever you need to restore your progress.</p>
             <small>Backups are manual. SOLO does not upload your study data to GitHub or any cloud service.</small>
           </div>
           <div className="backup-actions">
