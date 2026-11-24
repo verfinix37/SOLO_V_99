@@ -1,0 +1,21 @@
+
+{
+  "id": "/SOLO_V_99/",
+  "name": "SOLO — Station Master Command Centre",
+  "short_name": "SOLO",
+  "description": "Your personal RRB Station Master preparation dashboard.",
+  "start_url": "/SOLO_V_99/",
+  "scope": "/SOLO_V_99/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090a12",
+  "theme_color": "#090a12",
+  "icons": [
+    {
+      "src": "/SOLO_V_99/solo-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
