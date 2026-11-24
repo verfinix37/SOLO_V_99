@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Local development uses the root path. GitHub Pages builds use the /SOLO/
-// repository path. If you rename the GitHub repository, update this path.
+// GitHub Pages project site for the SOLO_V_99 repository.
 export default defineConfig({
   plugins: [react()],
   base: process.env.GITHUB_PAGES === 'true' ? '/SOLO_V_99/' : '/',

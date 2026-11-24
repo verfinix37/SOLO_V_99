@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -19,6 +19,41 @@ const readStore = () => {
 const percent = (n,d) => d ? Math.round(n/d*100) : 0;
 const levelFor = completed => Math.min(100, Math.floor(completed * 100 / TOTAL));
 const xpFor = completed => Math.round(completed * 10000 / TOTAL);
+
+const BACKUP_FORMAT = 'solo-progress-backup';
+const BACKUP_VERSION = 1;
+function validateBackup(payload) {
+  if (!payload || payload.format !== BACKUP_FORMAT || payload.version !== BACKUP_VERSION || !payload.data) {
+    throw new Error('This file is not a supported SOLO backup.');
+  }
+  const profile = payload.data.profile || {};
+  const chapters = payload.data.chapters || {};
+  const cleanChapters = {};
+  for (const subject of SUBJECTS) {
+    const list = chapters[subject.id];
+    if (!Array.isArray(list) || list.length !== subject.count) {
+      throw new Error(`The ${subject.name} chapter data is incomplete.`);
+    }
+    cleanChapters[subject.id] = list.map((chapter, index) => {
+      if (!chapter || typeof chapter.done !== 'boolean') {
+        throw new Error(`Invalid chapter data in ${subject.name}.`);
+      }
+      return {
+        id: `${subject.id}-${index + 1}`,
+        title: typeof chapter.title === 'string' ? chapter.title : `Chapter ${String(index + 1).padStart(2, '0')}`,
+        done: chapter.done
+      };
+    });
+  }
+  return {
+    profile: {
+      name: typeof profile.name === 'string' ? profile.name : '',
+      age: profile.age == null ? '' : String(profile.age)
+    },
+    chapters: cleanChapters
+  };
+}
+
 const milestones = [
   {level:10, title:'First Spark', detail:'Your journey is in motion.'},
   {level:20, title:'Momentum', detail:'Consistency is becoming your advantage.'},
@@ -53,6 +88,50 @@ function App(){
   const [editingName,setEditingName]=useState(false);
   const [profileDraft,setProfileDraft]=useState(store.profile);
   const [showReset,setShowReset]=useState(false);
+
+  const importInputRef = useRef(null);
+
+  function exportBackup() {
+    const payload = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      app: 'SOLO — Station Master Command Centre',
+      exportedAt: new Date().toISOString(),
+      data: store
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `SOLO-progress-backup-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    flash('Backup file created · keep it somewhere safe');
+  }
+
+  async function importBackup(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 2 * 1024 * 1024) throw new Error('The backup file is unexpectedly large.');
+      const payload = JSON.parse(await file.text());
+      const restored = validateBackup(payload);
+      const yes = window.confirm('Restore this SOLO backup? Your current profile and chapter progress will be replaced by the backup contents.');
+      if (!yes) return;
+      setStore(restored);
+      setProfileDraft(restored.profile);
+      setPage('dashboard');
+      flash('Backup restored successfully');
+    } catch (error) {
+      flash(error.message || 'Could not read this backup file');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
 
   useEffect(()=>{localStorage.setItem('solo-v1',JSON.stringify(store));},[store]);
   const allChapters=useMemo(()=>SUBJECTS.flatMap(s=>(store.chapters[s.id]||[]).map(c=>({...c,subjectId:s.id,subjectName:s.name,color:s.color}))),[store]);
@@ -145,6 +224,19 @@ function App(){
           <article className="profile-card glass"><div className="profile-avatar"><PowerMark/></div><div className="profile-name">{store.profile.name||'Your name'}</div><div className="profile-role">SOLO OPERATOR · RRB STATION MASTER</div><div className="profile-divider"/><div className="profile-stats"><div><small>AGE</small><b>{store.profile.age||'—'}</b></div><div><small>CURRENT LEVEL</small><b>{level}/100</b></div><div><small>CHAPTERS DONE</small><b>{completed}/81</b></div></div></article>
           <article className="profile-form glass"><div className="eyebrow">PERSONAL DETAILS</div><h2>Make it yours.</h2><p>These details stay in your browser's local storage.</p><form onSubmit={saveProfile}><label>FULL NAME<input required value={profileDraft.name} onChange={e=>setProfileDraft({...profileDraft,name:e.target.value})} placeholder="Enter your name"/></label><label>AGE<input type="number" min="1" max="120" value={profileDraft.age} onChange={e=>setProfileDraft({...profileDraft,age:e.target.value})} placeholder="Enter your age"/></label><button className="primary-btn" type="submit">SAVE PROFILE <span>↗</span></button></form></article>
         </div>
+        <section className="backup-panel glass">
+          <div className="backup-copy">
+            <div className="eyebrow"><span/> DATA SAFETY</div>
+            <h2>Protect your progress.</h2>
+            <p>Export a copy of your profile and all 81 chapter statuses. Keep the JSON backup somewhere safe, then import it whenever you need to restore your progress.</p>
+            <small>Backups are manual. SOLO does not upload your study data to GitHub or any cloud service.</small>
+          </div>
+          <div className="backup-actions">
+            <button className="primary-btn" type="button" onClick={exportBackup}>↓ EXPORT BACKUP <span>↗</span></button>
+            <button className="backup-import-btn" type="button" onClick={()=>importInputRef.current?.click()}>↑ IMPORT BACKUP</button>
+            <input ref={importInputRef} className="backup-file-input" type="file" accept=".json,application/json" onChange={importBackup}/>
+          </div>
+        </section>
         <div className="privacy-note glass"><span>◈</span><div><b>Your data belongs to you.</b><p>SOLO uses browser local storage. Your profile and chapter progress remain on this device and are not sent to a server. Clearing browser data will erase them, so export/backup is recommended before doing so.</p></div></div>
         <footer className="page-footer"><span>SOLO <b>v1.0</b></span><span>BUILT FOR THE LONG GAME <i>✦</i></span></footer>
       </section>}

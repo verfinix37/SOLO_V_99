@@ -60,3 +60,16 @@ Profile and chapter progress are stored in the browser on the current device. Th
 - Chapter counts and subject names are in `src/main.jsx` in the `SUBJECTS` array.
 - Visual theme and responsive breakpoints are in `src/styles.css`.
 - App icon is `public/solo-icon.svg`.
+
+
+## Progress backup and restore
+
+Open **Profile** in SOLO to find **Data Safety**.
+
+- **Export Backup** downloads a JSON file containing the profile and all chapter completion statuses.
+- **Import Backup** restores a previously exported SOLO JSON backup. Import replaces the current profile and chapter progress after confirmation.
+- Keep backup files in a safe place such as iCloud Drive, Google Drive, or your computer.
+- Backups are manual and remain under your control. SOLO does not upload progress data to GitHub.
+- Export a fresh backup after meaningful progress and before clearing website data, removing the Home Screen app, or making major browser changes.
+
+The backup file is compatible with SOLO backup format version 1.
