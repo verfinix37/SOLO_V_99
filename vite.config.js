@@ -5,5 +5,5 @@ import react from '@vitejs/plugin-react';
 // repository path. If you rename the GitHub repository, update this path.
 export default defineConfig({
   plugins: [react()],
-  base: process.env.GITHUB_PAGES === 'true' ? '/SOLO/' : '/',
+  base: process.env.GITHUB_PAGES === 'true' ? '/SOLO_V_99/' : '/',
 });
